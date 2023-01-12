@@ -8,12 +8,115 @@ using std::chrono::duration_cast;
 using std::chrono::nanoseconds;
 using std::chrono::microseconds;
 using std::cout;
+using std::ifstream;
 
+using olc::Pixel;
 
-static class Random
+class Visualizer : public olc::PixelGameEngine
 {
 public:
-	void MakeSeed(uint32_t* result, uint32_t seed)	// make seed from time and seed
+	uint32_t ITERATIONS;
+	uint32_t AGENTS;
+	uint32_t ACTIONS;
+	float* data;
+	
+	float y;
+	float yv;
+	
+	Visualizer(uint32_t iterations, uint32_t agents, uint32_t actions, float* data)
+	{
+		sAppName = "Probability Visualizer";
+		ITERATIONS = iterations;
+		AGENTS = agents;
+		ACTIONS = actions;
+		this->data = data;
+	}
+
+public:
+	bool OnUserCreate() override
+	{
+		y = 0;
+		yv = 0;
+		
+		return true;
+	}
+
+	bool OnUserUpdate(float fElapsedTime) override
+	{
+		Clear(olc::BLACK);
+		
+		yv -= 0.4f * (GetMouseWheel() > 0);
+		yv += 0.4f * (GetMouseWheel() < 0);
+		yv *= 0.988f;
+		y += yv;
+
+		// the data is 1 float for color(Green/Red) and ACTIONS floats for the probabilities
+		// there are AGENTS number of these sets of data and ITERATIONS number of these sets of AGENTS
+		
+		// Display the probabilities of each agent in each iteration side by side
+		uint32_t totalXElements = 1 + AGENTS + ACTIONS * AGENTS;
+		uint32_t iterationShift = 1 + ACTIONS;
+		uint32_t index = (-y + 100) * AGENTS * iterationShift;
+
+		for (uint32_t i = y + 100; i++;)
+		{
+			uint32_t drawX = 1;
+			uint32_t drawY = i - y;
+
+			if (drawY >= 768 || index >= (1 + ACTIONS) * AGENTS * ITERATIONS)
+				break;
+			
+			for (uint32_t j = 0; j < AGENTS; j++)
+			{
+				float isSurvivor = data[index++];
+				Pixel color = Pixel(255 * isSurvivor, 255 * (1 - isSurvivor), 0);	// Green for survivor, Red for dead
+				
+				for (uint32_t k = ACTIONS; k--;)
+					Draw(drawX++, drawY, color * data[index++]);
+				drawX++;
+			}
+		}
+		
+		return true;
+	}
+};
+
+int main()
+{
+	uint32_t ITERATIONS;
+	uint32_t AGENTS;
+	uint32_t ACTIONS;
+	float* data;
+
+	ifstream file("data.txt");
+	file >> ITERATIONS >> AGENTS >> ACTIONS;
+	cout << "Iterations: " << ITERATIONS << "\nAgents: " << AGENTS << "\nActions: " << ACTIONS << "\n";
+
+	data = new float[(1 + ACTIONS) * AGENTS * ITERATIONS];
+	for (int i = 0; i < (1 + ACTIONS) * AGENTS * ITERATIONS; i++)
+		file >> data[i];
+
+	/*for (int i = 0; i < (1 + ACTIONS) * AGENTS * ITERATIONS; i++)
+		cout << data[i] << "\n";*/
+	
+	uint32_t totalXElements = 1 + AGENTS + ACTIONS * AGENTS;
+	uint32_t xResolution = 1536 / totalXElements;
+	float yPixels = 1;
+	uint32_t yResolution = 768 / yPixels;
+	
+	Visualizer visualizer(ITERATIONS, AGENTS, ACTIONS, data);
+	if (visualizer.Construct(totalXElements, yResolution, xResolution, yPixels))
+		visualizer.Start();
+	return 0;
+}
+
+
+
+
+/*static class Random
+{
+public:
+	static void MakeSeed(uint32_t* result, uint32_t seed)	// make seed from time and seed
 	{
 		*result = seed;
 		*result = Hash((uint8_t*)result, sizeof(*result), nanosecond());
@@ -38,7 +141,7 @@ public:
 
 	float Rfloat(float min, float max) { return min + (max - min) * Ruint32() * 2.3283064371e-10; }
 
-	uint32_t Hash(const uint8_t* key, size_t len, uint32_t seed)	// MurmurHash3
+	static uint32_t Hash(const uint8_t* key, size_t len, uint32_t seed)	// MurmurHash3
 	{
 		uint32_t h = seed;
 		uint32_t k;
@@ -74,53 +177,6 @@ private:
 		return k;
 	}
 
-	uint32_t nanosecond() { return duration_cast<nanoseconds>(high_resolution_clock::now().time_since_epoch()).count(); }
-	uint32_t microsecond() { return duration_cast<microseconds>(high_resolution_clock::now().time_since_epoch()).count(); }
-};
-
-class Visualizer : public olc::PixelGameEngine
-{
-public:
-	Random random;
-	uint32_t seed;
-	
-	Visualizer() { sAppName = "Probability Visualizer"; }
-
-public:
-	bool OnUserCreate() override
-	{
-		random.MakeSeed(&seed, 0);
-		//random.Seed(&seed);
-
-		cout << "seed: ";
-		for (int i = 0; i < 32; i++)
-		{
-			cout << (seed & 1);
-			seed >>= 1;
-		}
-		cout << "\n";
-
-		return true;
-	}
-
-	bool OnUserUpdate(float fElapsedTime) override
-	{
-		for (int x = 0; x < ScreenWidth(); x++)
-			for (int y = 0; y < ScreenHeight(); y++)
-			{
-				uint32_t arr[2] = { x, y };
-				uint32_t hash = random.Hash((uint8_t*)arr, sizeof(arr), 0);
-				Draw(x, y, olc::Pixel(hash & 0xFF, (hash >> 8) & 0xFF, (hash >> 16) & 0xFF));
-			}
-		
-		return true;
-	}
-};
-
-int main()
-{
-	Visualizer visualizer;
-	if (visualizer.Construct(512, 256, 3, 3))
-		visualizer.Start();
-	return 0;
-}
+	static uint32_t nanosecond() { return duration_cast<nanoseconds>(high_resolution_clock::now().time_since_epoch()).count(); }
+	static uint32_t microsecond() { return duration_cast<microseconds>(high_resolution_clock::now().time_since_epoch()).count(); }
+};*/
