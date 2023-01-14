@@ -2,6 +2,7 @@
 #include "olcPixelGameEngine.h"
 #include <fstream>
 #include <chrono>
+#include <algorithm>
 
 using std::chrono::high_resolution_clock;
 using std::chrono::duration_cast;
@@ -9,6 +10,7 @@ using std::chrono::nanoseconds;
 using std::chrono::microseconds;
 using std::cout;
 using std::ifstream;
+using std::max;
 
 using olc::Pixel;
 
@@ -18,24 +20,26 @@ public:
 	uint32_t ITERATIONS;
 	uint32_t AGENTS;
 	uint32_t ACTIONS;
+	uint32_t SIZE;
 	float* data;
 	
 	float y;
 	float yv;
 	
-	Visualizer(uint32_t iterations, uint32_t agents, uint32_t actions, float* data)
+	Visualizer(uint32_t iterations, uint32_t agents, uint32_t actions, uint32_t size, float* data)
 	{
 		sAppName = "Probability Visualizer";
 		ITERATIONS = iterations;
 		AGENTS = agents;
 		ACTIONS = actions;
+		SIZE = size;
 		this->data = data;
 	}
 
 public:
 	bool OnUserCreate() override
 	{
-		y = 0;
+		y = 0;// ScreenHeight() * 1.5f - ITERATIONS;
 		yv = 0;
 		
 		return true;
@@ -49,30 +53,20 @@ public:
 		yv += 0.4f * (GetMouseWheel() < 0);
 		yv *= 0.988f;
 		y += yv;
-
-		// the data is 1 float for color(Green/Red) and ACTIONS floats for the probabilities
-		// there are AGENTS number of these sets of data and ITERATIONS number of these sets of AGENTS
 		
-		// Display the probabilities of each agent in each iteration side by side
-		uint32_t totalXElements = 1 + AGENTS + ACTIONS * AGENTS;
-		uint32_t iterationShift = 1 + ACTIONS;
-		uint32_t index = (-y + 100) * AGENTS * iterationShift;
-
-		for (uint32_t i = y + 100; i++;)
+		uint32_t snap = max(0, (int)y);
+		int index = snap * ACTIONS * AGENTS;
+		uint32_t drawX;
+		
+		for (uint32_t i = y + ScreenHeight() - snap; i--;)
 		{
-			uint32_t drawX = 1;
-			uint32_t drawY = i - y;
-
-			if (drawY >= 768 || index >= (1 + ACTIONS) * AGENTS * ITERATIONS)
-				break;
+			if (index >= SIZE) break;
 			
+			drawX = 1;
 			for (uint32_t j = 0; j < AGENTS; j++)
 			{
-				float isSurvivor = data[index++];
-				Pixel color = Pixel(255 * isSurvivor, 255 * (1 - isSurvivor), 0);	// Green for survivor, Red for dead
-				
 				for (uint32_t k = ACTIONS; k--;)
-					Draw(drawX++, drawY, color * data[index++]);
+					Draw(drawX++, i, Pixel(0, data[index++] * 255, 0));
 				drawX++;
 			}
 		}
@@ -86,26 +80,29 @@ int main()
 	uint32_t ITERATIONS;
 	uint32_t AGENTS;
 	uint32_t ACTIONS;
+	uint32_t SIZE;
 	float* data;
 
 	ifstream file("data.txt");
 	file >> ITERATIONS >> AGENTS >> ACTIONS;
-	cout << "Iterations: " << ITERATIONS << "\nAgents: " << AGENTS << "\nActions: " << ACTIONS << "\n";
+	SIZE = ACTIONS * AGENTS * ITERATIONS;
 
-	data = new float[(1 + ACTIONS) * AGENTS * ITERATIONS];
-	for (int i = 0; i < (1 + ACTIONS) * AGENTS * ITERATIONS; i++)
+	data = new float[SIZE];
+	for (int i = 0; i < SIZE; i++)
 		file >> data[i];
+	
+	/*for (int i = 0; i < SIZE; i += 2)
+		cout << data[i] << " " << data[i + 1] << "\n";*/
 
-	/*for (int i = 0; i < (1 + ACTIONS) * AGENTS * ITERATIONS; i++)
-		cout << data[i] << "\n";*/
+	file.close();
 	
 	uint32_t totalXElements = 1 + AGENTS + ACTIONS * AGENTS;
-	uint32_t xResolution = 1536 / totalXElements;
-	float yPixels = 1;
-	uint32_t yResolution = 768 / yPixels;
+	uint32_t xPixels = 1920 / totalXElements;
+	float yPixels = 2;
+	uint32_t totalYElements = 1080 / yPixels;
 	
-	Visualizer visualizer(ITERATIONS, AGENTS, ACTIONS, data);
-	if (visualizer.Construct(totalXElements, yResolution, xResolution, yPixels))
+	Visualizer visualizer(ITERATIONS, AGENTS, ACTIONS, SIZE, data);
+	if (visualizer.Construct(totalXElements, totalYElements, xPixels, yPixels))
 		visualizer.Start();
 	return 0;
 }
