@@ -47,7 +47,7 @@ public:
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
-		Clear(olc::BLACK);
+		Clear(Pixel(30, 0, 30));
 		
 		yv -= 0.4f * (GetMouseWheel() > 0);
 		yv += 0.4f * (GetMouseWheel() < 0);
